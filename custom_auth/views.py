@@ -18,7 +18,7 @@ def index(request):
         user_session = UserSession.objects.get(user__email=email)
         expiry_time = user_session.jwt_token_created + timedelta(minutes=30)
         now = datetime.utcnow().replace(tzinfo=pytz.utc)
-        if now<=expiry_time and request.META['HTTP_AUTHORIZATION'].split()[1]==user_session.jwt_token:
+        if now <= expiry_time and request.META['HTTP_AUTHORIZATION'].split()[1] == user_session.jwt_token:
             return HttpResponse({"status":"success","message":"Hello, starlly"})
     return HttpResponse({"status":"fail"})		
 
@@ -27,11 +27,17 @@ def login(request):
     if request.method == 'GET':
         return render(request, template_name="custom_auth/login.html", context={"name": "starlly"})
     elif request.method == 'POST':
-        if User.objects.filter(email=request.POST.get("email")).exists():
-            user = User.objects.get(email=request.POST.get("email"))
-            payload = {'id': user.id, 'email': user.email}
-            jwt_token = {'token': jwt.encode(payload, "SECRET_KEY")}
-            UserSession.objects.create(user=user, jwt_token=jwt_token.get("token"))
-            # return HttpResponse(jwt_token)
-            return HttpResponse({"status":"success"})
-        return HttpResponse(json.dumps({"status":"failed"}))	
+        try:
+            if User.objects.filter(username=request.POST.get("username")).exists():
+                user = User.objects.get(username=request.POST.get("username"))
+                if authenticate(username=request.POST.get("username"), password=request.POST.get("password")):
+                    payload = {'id': user.id, 'email': user.email}
+                    jwt_token = {'token': jwt.encode(payload, "SECRET_KEY")}
+                    UserSession.objects.create(user=user, jwt_token=jwt_token.get("token"))
+                    # return HttpResponse(jwt_token)
+                    return HttpResponse(json.dumps({"status": "success", "token": str(jwt_token.get("token"))}))
+                else:
+                    return HttpResponse(json.dumps({"status": "success", "reason": "Password is incorrect"}))
+            return HttpResponse(json.dumps({"status": "success", "reason": "user does not exists"}))
+        except Exception:
+            return HttpResponse(json.dumps({"status": "failed"}))
